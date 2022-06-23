@@ -40,7 +40,7 @@ class Client():
         self.old__init__(*args, **kwargs)
     
     @patchable
-    async def listen(self, chat_id, filters=None, timeout=None):
+    async def listen(self, chat_id, filters=None, timeout=None, require_reply=False, force_reply_id=None):
         if type(chat_id) != int:
             chat = await self.get_chat(chat_id)
             chat_id = chat.id
@@ -50,14 +50,14 @@ class Client():
             functools.partial(self.clear_listener, chat_id)
         )
         self.listening.update({
-            chat_id: {"future": future, "filters": filters}
+            chat_id: {"future": future, "filters": filters, "req_reply": require_reply, "req_rep_id": force_reply_id}
         })
         return await asyncio.wait_for(future, timeout)
     
     @patchable
-    async def ask(self, chat_id, text, filters=None, timeout=None, *args, **kwargs):
+    async def ask(self, chat_id, text, filters=None, timeout=None, require_reply=False, *args, **kwargs):
         request = await self.send_message(chat_id, text, *args, **kwargs)
-        response = await self.listen(chat_id, filters, timeout)
+        response = await self.listen(chat_id, filters, timeout, require_reply, request.id)
         response.request = request
         return response
    
@@ -86,6 +86,11 @@ class MessageHandler():
     async def resolve_listener(self, client, message, *args):
         listener = client.listening.get(message.chat.id)
         if listener and not listener['future'].done():
+            if listener['req_reply']:
+                if not message.reply_to_message:
+                    return
+                if listener['req_rep_id'] != message.reply_to_message.id:
+                    return
             listener['future'].set_result(message)
         else:
             if listener and listener['future'].done():
