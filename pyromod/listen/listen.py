@@ -49,14 +49,7 @@ class Client():
         future.add_done_callback(
             functools.partial(self.clear_listener, chat_id)
         )
-        update_dict = {chat_id: {"future": future, "filters": filters}}
-        if require_reply:
-            update_dict["req_reply"] = True
-            update_dict["req_rep_id"] = force_reply_id
-        if force_sender:
-            update_dict["req_sndr"] = True
-            update_dict["req_sndr_id"] = force_sender_id
-        self.listening.update(update_dict)
+        self.listening.update({chat_id: {"future": future, "filters": filters, "req_reply": require_reply, "req_rep_id": force_reply_id, "req_sndr": force_sender, "req_sndr_id"; force_sender_id}})
         return await asyncio.wait_for(future, timeout)
     
     @patchable
@@ -91,12 +84,12 @@ class MessageHandler():
     async def resolve_listener(self, client, message, *args):
         listener = client.listening.get(message.chat.id)
         if listener and not listener['future'].done():
-            if listener.get('req_reply', False):
+            if listener['req_reply']:
                 if not message.reply_to_message:
                     return
                 if listener['req_rep_id'] != message.reply_to_message.id:
                     return
-            if listener.get('req_sndr', False):
+            if listener['req_sndr']:
                 if listener['req_sndr_id'] != message.from_user.id:
                     return
             listener['future'].set_result(message)
