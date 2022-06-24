@@ -49,7 +49,7 @@ class Client():
         future.add_done_callback(
             functools.partial(self.clear_listener, chat_id)
         )
-        self.listening.update({chat_id: {"future": future, "filters": filters, "req_reply": require_reply, "req_rep_id": force_reply_id, "req_sndr": force_sender, "req_sndr_id"; force_sender_id}})
+        self.listening.update({chat_id: {"future": future, "filters": filters, "req_reply": require_reply, "req_rep_id": force_reply_id, "req_sndr": force_sender, "req_sndr_id": force_sender_id}})
         return await asyncio.wait_for(future, timeout)
     
     @patchable
