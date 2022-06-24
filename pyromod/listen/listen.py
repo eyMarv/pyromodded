@@ -40,7 +40,7 @@ class Client():
         self.old__init__(*args, **kwargs)
     
     @patchable
-    async def listen(self, chat_id, filters=None, timeout=None, require_reply=False, force_reply_id=None):
+    async def listen(self, chat_id, filters=None, timeout=None, require_reply=False, force_reply_id=None, force_sender=False, force_sender_id=None):
         if type(chat_id) != int:
             chat = await self.get_chat(chat_id)
             chat_id = chat.id
@@ -49,15 +49,20 @@ class Client():
         future.add_done_callback(
             functools.partial(self.clear_listener, chat_id)
         )
-        self.listening.update({
-            chat_id: {"future": future, "filters": filters, "req_reply": require_reply, "req_rep_id": force_reply_id}
-        })
+        update_dict = {chat_id: {"future": future, "filters": filters}}
+        if require_reply:
+            update_dict["req_reply"] = True
+            update_dict["req_rep_id"] = force_reply_id
+        if force_sender:
+            update_dict["req_sndr"] = True
+            update_dict["req_sndr_id"] = force_sender_id
+        self.listening.update(update_dict)
         return await asyncio.wait_for(future, timeout)
     
     @patchable
-    async def ask(self, chat_id, text, filters=None, timeout=None, require_reply=False, *args, **kwargs):
+    async def ask(self, chat_id, text, filters=None, timeout=None, require_reply=False, force_sender=False, force_sender_id=None, *args, **kwargs):
         request = await self.send_message(chat_id, text, *args, **kwargs)
-        response = await self.listen(chat_id, filters, timeout, require_reply, request.id)
+        response = await self.listen(chat_id, filters, timeout, require_reply, request.id, force_sender, force_sender_id)
         response.request = request
         return response
    
@@ -86,10 +91,13 @@ class MessageHandler():
     async def resolve_listener(self, client, message, *args):
         listener = client.listening.get(message.chat.id)
         if listener and not listener['future'].done():
-            if listener['req_reply']:
+            if listener.get('req_reply', False):
                 if not message.reply_to_message:
                     return
                 if listener['req_rep_id'] != message.reply_to_message.id:
+                    return
+            if listener.get('req_sndr', False):
+                if listener['req_sndr_id'] != message.from_user.id:
                     return
             listener['future'].set_result(message)
         else:
